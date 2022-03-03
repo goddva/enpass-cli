@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -54,6 +55,7 @@ type Args struct {
 	sort             *bool
 	trashed          *bool
 	clipboardPrimary *bool
+	batch            *bool
 }
 
 func (args *Args) parse() {
@@ -66,12 +68,24 @@ func (args *Args) parse() {
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+	args.batch = flag.Bool("batch", false, "Use batch mode. Read password from STDIN.")
 	flag.Parse()
 	args.command = strings.ToLower(flag.Arg(0))
 	args.filters = flag.Args()[1:]
 }
 
 func prompt(logger *logrus.Logger, args *Args, msg string) string {
+
+	if *args.batch {
+		fi, _ := os.Stdin.Stat()
+		if (fi.Mode() & os.ModeCharDevice) == 0 {
+			bytes, _ := ioutil.ReadAll(os.Stdin)
+			return strings.TrimRight(string(bytes), "\n")
+		}
+
+		logger.Fatal("Could not get password from pipe")
+	}
+
 	if !*args.nonInteractive {
 		if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
 			logger.WithError(err).Fatal("could not prompt for " + msg)
